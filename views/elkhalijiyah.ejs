@@ -1,0 +1,407 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <title>Elkhalijiyah Dashboard</title>
+    <link rel="shortcut icon" href="/images/DSS.png"/>
+    <!-- Stylesheets -->
+    <link rel="stylesheet" href="/css/backend-plugin.min.css">
+    <link rel="stylesheet" href="/css/backend.css?v=1.0.0">
+    <link rel="stylesheet" href="/vendor/@fortawesome/fontawesome-free/css/all.min.css">
+    <link rel="stylesheet" href="/vendor/line-awesome/dist/line-awesome/css/line-awesome.min.css">
+    <link rel="stylesheet" href="/vendor/remixicon/fonts/remixicon.css">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f4f7fa;
+            color: #333;
+            margin: 0;
+            padding: 0;
+        }
+
+        .dashboard-title {
+            font-size: 36px;
+            color: #333;
+            text-align: center;
+            margin: 50px 0 30px;
+            text-transform: uppercase;
+        }
+
+        .container-fluid {
+            padding: 20px;
+        }
+
+        .card {
+            background-color: #fff;
+            border: 1px solid #e6e6e6;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+            padding: 20px;
+        }
+
+        .card-title {
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+
+        .card-content {
+            font-size: 18px;
+        }
+
+        .date-picker-container {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .date-picker-container label {
+            margin-right: 10px;
+        }
+
+        .date-picker-container input {
+            margin-right: 20px;
+        }
+        
+        .btn {
+            margin-left: 10px;
+        }
+
+        .product-list,
+        .payment-list,
+        .tax-list {
+            margin-top: 20px;
+        }
+
+        .product-item,
+        .payment-item,
+        .tax-item {
+            font-size: 16px;
+            margin-bottom: 5px;
+        }
+
+        .global-payments {
+            font-size: 20px;
+            text-align: center;
+            margin-top: 30px;
+        }
+
+        .final-total {
+            font-size: 24px;
+            text-align: center;
+            margin-top: 20px;
+            font-weight: bold;
+        }
+
+        .chart-container {
+            margin-top: 40px;
+        }
+
+        .chart-title {
+            font-size: 22px;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        .large-chart {
+            width: 100%;
+            height: 400px;
+        }
+
+        .small-chart {
+            width: 100%;
+            height: 300px;
+        }
+
+        /* Loader styles */
+        #loader {
+            display: none;
+            position: fixed;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 1000;
+        }
+
+        #loader .spinner-border {
+            width: 3rem;
+            height: 3rem;
+        }
+    </style>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const socket = io();
+            socket.emit('pageLoad', 'elkhalijiyah');
+            showLoader();  // Show the loader when the page loads
+
+            let salesChart, paymentsChart, productsChart, brandsChart;
+            let salesData = [];  // Variable pour stocker les données reçues
+            let globalPayments = {};  // Variable pour stocker les paiements globaux
+            let globalTaxes = {};  // Variable pour stocker les taxes globales
+            let totalSalesByBrand = {};  // Variable pour stocker les ventes par marque
+            let finalTotalAfterTaxes = 0;  // Variable pour stocker le total final après taxes
+
+            socket.on('salesUpdate', function(data) {
+                salesData = data.posSalesData;
+                globalPayments = data.globalPayments;
+                globalTaxes = data.globalTaxes;
+                totalSalesByBrand = data.totalSalesByBrand;
+                finalTotalAfterTaxes = data.finalTotalAfterTaxes;
+                updateSalesChart();
+                updatePaymentsChart();
+                updateProductsChart();
+                updateBrandsChart();
+                updateFinalTotal();
+                hideLoader();  // Hide the loader when data is received
+                console.log('Résultats pour chaque point de vente :', data.posSalesData);
+                console.log('Global Payments:', data.globalPayments);
+                console.log('Global Taxes:', data.globalTaxes);
+                console.log('Total Sales by Brand:', data.totalSalesByBrand);
+                console.log('Final Total After Taxes:', data.finalTotalAfterTaxes);
+            });
+
+            function updateSalesChart() {
+                const ctx = document.getElementById('salesChart').getContext('2d');
+                const salesLabels = salesData.map(pos => pos.posName);
+                const salesTotals = salesData.map(pos => pos.totalSales);
+                const salesPassengers = salesData.map(pos => pos.totalPassengers);
+                const salesAfterTaxes = salesData.map(pos => pos.totalAfterTaxes);
+
+                if (salesChart) {
+                    salesChart.destroy();
+                }
+
+                salesChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: salesLabels,
+                        datasets: [
+                            {
+                                label: 'Total Sales',
+                                data: salesTotals,
+                                backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                                borderColor: 'rgba(75, 192, 192, 1)',
+                                borderWidth: 1
+                            },
+                            {
+                                label: 'Total Passengers',
+                                data: salesPassengers,
+                                backgroundColor: 'rgba(153, 102, 255, 0.2)',
+                                borderColor: 'rgba(153, 102, 255, 1)',
+                                borderWidth: 1
+                            },
+                            {
+                                label: 'Total After Taxes',
+                                data: salesAfterTaxes,
+                                backgroundColor: 'rgba(255, 159, 64, 0.2)',
+                                borderColor: 'rgba(255, 159, 64, 1)',
+                                borderWidth: 1
+                            }
+                        ]
+                    },
+                    options: {
+                        scales: {
+                            y: {
+                                beginAtZero: true
+                            }
+                        }
+                    }
+                });
+            }
+
+            function updatePaymentsChart() {
+                const ctx = document.getElementById('paymentsChart').getContext('2d');
+                const paymentLabels = Object.keys(globalPayments);
+                const paymentAmounts = Object.values(globalPayments);
+
+                if (paymentsChart) {
+                    paymentsChart.destroy();
+                }
+
+                paymentsChart = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: paymentLabels,
+                        datasets: [{
+                            label: 'Payments',
+                            data: paymentAmounts,
+                            backgroundColor: [
+                                'rgba(255, 99, 132, 0.2)',
+                                'rgba(54, 162, 235, 0.2)',
+                                'rgba(255, 206, 86, 0.2)',
+                                'rgba(75, 192, 192, 0.2)',
+                                'rgba(153, 102, 255, 0.2)'
+                            ],
+                            borderColor: [
+                                'rgba(255, 99, 132, 1)',
+                                'rgba(54, 162, 235, 1)',
+                                'rgba(255, 206, 86, 1)',
+                                'rgba(75, 192, 192, 1)',
+                                'rgba(153, 102, 255, 1)'
+                            ],
+                            borderWidth: 1
+                        }]
+                    }
+                });
+            }
+
+            function updateProductsChart() {
+                const ctx = document.getElementById('productsChart').getContext('2d');
+                const productLabels = salesData.flatMap(pos => pos.productsSold.map(product => product.name));
+                const productQuantities = salesData.flatMap(pos => pos.productsSold.map(product => product.quantity));
+
+                if (productsChart) {
+                    productsChart.destroy();
+                }
+
+                productsChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: productLabels,
+                        datasets: [{
+                            label: 'Products Sold',
+                            data: productQuantities,
+                            backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                            borderColor: 'rgba(75, 192, 192, 1)',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        scales: {
+                            y: {
+                                beginAtZero: true
+                            }
+                        }
+                    }
+                });
+            }
+
+            function updateBrandsChart() {
+                const ctx = document.getElementById('brandsChart').getContext('2d');
+                const brandLabels = Object.keys(totalSalesByBrand);
+                const brandTotals = Object.values(totalSalesByBrand);
+
+                if (brandsChart) {
+                    brandsChart.destroy();
+                }
+
+                brandsChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: brandLabels,
+                        datasets: [{
+                            label: 'Total Sales by Brand',
+                            data: brandTotals,
+                            backgroundColor: 'rgba(255, 159, 64, 0.2)',
+                            borderColor: 'rgba(255, 159, 64, 1)',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        scales: {
+                            y: {
+                                beginAtZero: true
+                            }
+                        }
+                    }
+                });
+            }
+
+            function updateFinalTotal() {
+                const finalTotalContainer = document.getElementById('finalTotalContainer');
+                finalTotalContainer.textContent = `Final Total After Taxes: ${finalTotalAfterTaxes}`;
+            }
+
+            // Définir les dates par défaut à la date actuelle
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('startDate').value = today;
+            document.getElementById('endDate').value = today;
+
+            // Add event listener for the button
+            document.getElementById('fetchDataBtn').addEventListener('click', function() {
+                const startDate = document.getElementById('startDate').value;
+                const endDate = document.getElementById('endDate').value;
+                if (startDate && endDate) {
+                    showLoader();  // Show the loader when fetching data
+                    socket.emit('dateRangeChange', { startDate, endDate });
+                } else {
+                    alert('Please select both start and end dates.');
+                }
+            });
+
+            function showLoader() {
+                document.getElementById('loader').style.display = 'block';
+            }
+
+            function hideLoader() {
+                document.getElementById('loader').style.display = 'none';
+            }
+        });
+    </script>
+</head>
+<body>
+    <h1 class="dashboard-title">Elkhalijiyah Dashboard</h1>
+    <div class="container-fluid">
+        <div class="row">
+            <div class="date-picker-container">
+                <label for="startDate">Start Date:</label>
+                <input type="date" id="startDate">
+                <label for="endDate">End Date:</label>
+                <input type="date" id="endDate">
+                <button id="fetchDataBtn" class="btn btn-primary">Fetch Data</button>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-title">Final Total After Taxes</div>
+                    <div class="card-content final-total" id="finalTotalContainer">
+                        <!-- Le total final après taxes sera ajouté ici dynamiquement -->
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="row chart-container">
+            <div class="col-12">
+                <div class="chart-title">Sales Overview</div>
+                <canvas id="salesChart" class="large-chart"></canvas>
+            </div>
+        </div>
+        <div class="row chart-container">
+            <div class="col-md-6">
+                <div class="chart-title">Payments Overview</div>
+                <canvas id="paymentsChart" class="small-chart"></canvas>
+            </div>
+            <div class="col-md-6">
+                <div class="chart-title">Products Sold</div>
+                <canvas id="productsChart" class="small-chart"></canvas>
+            </div>
+        </div>
+        <div class="row chart-container">
+            <div class="col-12">
+                <div class="chart-title">Total Sales by Brand</div>
+                <canvas id="brandsChart" class="large-chart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loader element -->
+    <div id="loader">
+        <div class="spinner-border text-primary" role="status">
+            <span class="sr-only">Loading...</span>
+        </div>
+    </div>
+
+    <!-- Backend Bundle JavaScript -->
+    <script src="/js/backend-bundle.min.js"></script>
+    <!-- Table Treeview JavaScript -->
+    <script src="/js/table-treeview.js"></script>
+    <!-- Chart Custom JavaScript -->
+    <script src="/js/customizer.js"></script>
+    <!-- app JavaScript -->
+    <script src="/js/app.js"></script>
+</body>
+</html>
